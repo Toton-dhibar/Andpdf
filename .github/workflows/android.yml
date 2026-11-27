@@ -19,8 +19,12 @@ env:
 
 jobs:
   build:
-    name: Lint and build Android 8+
+    name: Android ${{ matrix.abi }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a, x86_64]
     steps:
       - uses: actions/checkout@v7
 
@@ -34,25 +38,40 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          key: android-api-26
+          key: android-api-26-${{ matrix.abi }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/pdfcraft-android/android/gradle/libs.versions.toml', 'apps/pdfcraft-android/android/gradle/wrapper/gradle-wrapper.properties', 'apps/pdfcraft-android/android/build.gradle.kts', 'apps/pdfcraft-android/android/app/build.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Install cargo-ndk and the Android NDK
         run: |
           cargo install cargo-ndk --version 4.1.2 --locked
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865" >/dev/null
 
-      - name: Lint and build all Android ABIs
+      - name: Lint and build ABI
         working-directory: apps/pdfcraft-android/android
-        run: ./gradlew lint assembleDebug assembleRelease --no-daemon
+        env:
+          ABI: ${{ matrix.abi }}
+        run: |
+          if [ "$ABI" = arm64-v8a ]; then
+            ./gradlew lint assembleDebug assembleRelease "-Ppdfcraft.abis=$ABI" --no-daemon
+          else
+            ./gradlew assembleDebug assembleRelease "-Ppdfcraft.abis=$ABI" --no-daemon
+          fi
 
-      - name: Verify packaged ABIs
+      - name: Verify packaged ABI
         working-directory: apps/pdfcraft-android/android
+        env:
+          ABI: ${{ matrix.abi }}
         run: |
           for variant in debug release; do
             apk="app/build/outputs/apk/$variant/app-$variant.apk"
-            for abi in arm64-v8a armeabi-v7a x86_64; do
-              unzip -Z1 "$apk" | grep -Fxq "lib/$abi/libpdfcraft_android.so"
-            done
+            unzip -Z1 "$apk" | grep -Fxq "lib/$ABI/libpdfcraft_android.so"
           done
 
       - name: Inspect native imports linked for API 26
