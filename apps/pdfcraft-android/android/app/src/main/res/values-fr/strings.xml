@@ -2,7 +2,7 @@
 <!--
   Textes de PdfCraft, en français (France).
 -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="open_with">Ouvrir dans PdfCraft</string>
 
     <!-- Shared: buttons and words used on many screens -->
@@ -1041,7 +1041,7 @@
     <string name="msg_busy_creating_pdf">Création du PDF…</string>
     <!-- Create PDF takes at most this many files at once. -->
     <plurals name="msg_create_first_files">
-        <item quantity="one">Fichiers utilisés : %1$d.</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">Seul le premier fichier a été utilisé.</item>
         <item quantity="other">Seuls les %1$d premiers fichiers ont été utilisés.</item>
     </plurals>
     <string name="msg_busy_extracting">Extraction…</string>
