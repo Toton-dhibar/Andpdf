@@ -364,6 +364,8 @@
     <string name="pages_extract">Extrahovať</string>
     <string name="pages_rotate_left">Doľava</string>
     <string name="pages_rotate_right">Doprava</string>
+    <string name="viewer_rotate_page_left">Otočiť stranu doľava</string>
+    <string name="viewer_rotate_page_right">Otočiť stranu doprava</string>
     <string name="pages_insert">Vložiť</string>
     <string name="pages_at_start">Na začiatok</string>
     <string name="pages_at_end">Na koniec</string>

@@ -501,6 +501,8 @@
     <string name="pages_extract">Extraire</string>
     <string name="pages_rotate_left">Gauche</string>
     <string name="pages_rotate_right">Droite</string>
+    <string name="viewer_rotate_page_left">Faire pivoter la page à gauche</string>
+    <string name="viewer_rotate_page_right">Faire pivoter la page à droite</string>
 
     <!-- Pages: Insert sheet (where the new pages go, and what they are) -->
     <string name="pages_insert">Insérer</string>
