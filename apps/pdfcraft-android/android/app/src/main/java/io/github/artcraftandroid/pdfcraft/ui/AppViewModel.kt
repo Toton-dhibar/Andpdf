@@ -48,7 +48,9 @@ import io.github.artcraftandroid.pdfcraft.engine.userMessage
 import io.github.artcraftandroid.pdfcraft.ui.viewer.PageImages
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -93,6 +95,31 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
         private set
 
     val messages = Channel<Message>(Channel.BUFFERED)
+    val legacyStoragePermissionRequests = Channel<Unit>(Channel.CONFLATED)
+    private val legacyStoragePermissionMutex = Mutex()
+    private var legacyStoragePermissionResult: CompletableDeferred<Boolean>? = null
+
+    /** Request shared-storage access only on Android 8/9, where the save fallback needs file paths. */
+    private suspend fun hasLegacyStoragePermission(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) return true
+        val app = getApplication<Application>()
+        if (androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED) return true
+        legacyStoragePermissionMutex.lock()
+        try {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(app, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED) return true
+            val result = CompletableDeferred<Boolean>()
+            legacyStoragePermissionResult = result
+            legacyStoragePermissionRequests.send(Unit)
+            return result.await()
+        } finally {
+            legacyStoragePermissionResult = null
+            legacyStoragePermissionMutex.unlock()
+        }
+    }
+
+    fun onLegacyStoragePermission(granted: Boolean) {
+        legacyStoragePermissionResult?.complete(granted)
+    }
 
     /** How many bytes of page images to keep: an eighth of the app's heap, between 32 and 192 MB. */
     private val imageBudget: Int = run {
@@ -2150,6 +2177,11 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
 
     /** Put [file] into Downloads as [name] and say so, with Open. */
     private suspend fun deliver(file: File, name: String, mime: String = "application/pdf") {
+        if (!hasLegacyStoragePermission()) {
+            file.delete()
+            tell(text(R.string.main_error_not_allowed))
+            return
+        }
         val uri = withContext(Dispatchers.IO) { files.saveToDownloads(file, name, mime).also { file.delete() } }
         val size = withContext(Dispatchers.IO) { files.size(uri) }
         val saved = size?.let { text(R.string.msg_saved_downloads_size, name, io.github.artcraftandroid.pdfcraft.ui.viewer.formatSize(it)) } ?: text(R.string.msg_saved_downloads, name)
@@ -2284,6 +2316,11 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
             }
             intents.trySend(Intent.createChooser(sendIntent(uris, mime), null))
         } else {
+            if (!hasLegacyStoragePermission()) {
+                made.forEach { it.first.delete() }
+                tell(text(R.string.main_error_not_allowed))
+                return@job
+            }
             withContext(Dispatchers.IO) {
                 for ((f, name) in made) {
                     files.saveToPictures(f, name, mime)
@@ -2303,6 +2340,11 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
         val out = tempFile("pdf")
         eng.tool("doc_create_multiple", mapOf("paths" to paths, "out" to out.absolutePath, "mode" to "combine"))
         val name = files.displayNameRaw(uris.first()).substringBeforeLast('.') + ".pdf"
+        if (!hasLegacyStoragePermission()) {
+            out.delete()
+            tell(text(R.string.main_error_not_allowed))
+            return@job
+        }
         val uri = withContext(Dispatchers.IO) { files.saveToDownloads(out, DocumentFiles.safeName(name)).also { out.delete() } }
         tell(text(R.string.msg_saved_downloads, name))
         open(uri)
@@ -2486,6 +2528,11 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
                 val folder = scanFolder
                 val folderName = scanFolderName
                 val inFolder = folder?.let { tree -> withContext(Dispatchers.IO) { runCatching { files.saveToFolder(tree, out, name) }.getOrNull() } }
+                if (inFolder == null && !hasLegacyStoragePermission()) {
+                    out.delete()
+                    tell(text(R.string.main_error_not_allowed))
+                    return@job
+                }
                 val uri = inFolder ?: withContext(Dispatchers.IO) { files.saveToDownloads(out, name) }
                 withContext(Dispatchers.IO) { out.delete() }
                 tell(
@@ -2796,9 +2843,14 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
                             bookmarkStore.move(row.key, Uri.fromFile(target).toString())
                         }
                         // what the tools saved to Downloads: MediaStore entries keep their address when renamed
-                        u.authority == android.provider.MediaStore.AUTHORITY -> {
-                            val values = android.content.ContentValues().apply { put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name) }
-                            require(getApplication<Application>().contentResolver.update(u, values, null, null) > 0) { text(R.string.msg_rename_not_here) }
+                        u.authority == "media" -> {
+                            val renamed = if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                                files.renameLegacySharedFile(u, name)
+                            } else {
+                                val values = android.content.ContentValues().apply { put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name) }
+                                getApplication<Application>().contentResolver.update(u, values, null, null) > 0
+                            }
+                            require(renamed) { text(R.string.msg_rename_not_here) }
                             recents.update(row.key) { it.copy(name = name) }
                         }
                         else -> {
@@ -2822,6 +2874,10 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
             val f = localFileOf(row) ?: return@launch tell(text(R.string.common_file_unreadable))
             val copy = withContext(Dispatchers.IO) { File(getApplication<Application>().cacheDir, "dup-${System.nanoTime()}.pdf").also { f.copyTo(it, overwrite = true) } }
             val base = row.name.removeSuffix(".pdf")
+            if (!hasLegacyStoragePermission()) {
+                copy.delete()
+                return@launch tell(text(R.string.main_error_not_allowed))
+            }
             val uri = withContext(Dispatchers.IO) { files.saveToDownloads(copy, "$base copy.pdf").also { copy.delete() } }
             tell(text(R.string.msg_duplicated, "$base copy.pdf"), text(R.string.common_open)) { open(uri) }
             scanLocal(force = true)
@@ -2857,7 +2913,7 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
                     val deleted = try {
                         when {
                             u.scheme == "file" -> File(requireNotNull(u.path)).delete()
-                            u.authority == android.provider.MediaStore.AUTHORITY -> app.contentResolver.delete(u, null, null) > 0
+                            u.authority == "media" -> app.contentResolver.delete(u, null, null) > 0
                             android.provider.DocumentsContract.isDocumentUri(app, u) -> android.provider.DocumentsContract.deleteDocument(app.contentResolver, u)
                             // another app's own file link (a file manager's Open with): only that app can say
                             else -> app.contentResolver.delete(u, null, null) > 0
@@ -2872,13 +2928,14 @@ class AppViewModel(app: Application, private val saved: SavedStateHandle) : Andr
                         false
                     }
                     if (!deleted) throw CannotDelete()
+                    files.forgetLegacySharedFile(u)
                     recents.remove(setOf(row.key))
                 }
             }
             // A file another app lent (#53): Android's own error named the app's file provider. Say
             // it in words, and offer what PdfCraft can do: take it off Recent.
             ok.onFailure { e ->
-                if (e is CannotDelete && u.scheme == "content" && u.authority != android.provider.MediaStore.AUTHORITY && recentList.any { it.uri == row.key }) {
+                if (e is CannotDelete && u.scheme == "content" && u.authority != "media" && recentList.any { it.uri == row.key }) {
                     tell(text(R.string.msg_delete_not_allowed, row.name), text(R.string.home_remove_from_recent)) { removeRecent(row.key) }
                 } else {
                     tell(if (e is CannotDelete) text(R.string.msg_delete_failed) else e.userMessage)
