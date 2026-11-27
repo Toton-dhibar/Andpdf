@@ -622,6 +622,7 @@ private fun ReadAloudFull(vm: io.github.artcraftandroid.pdfcraft.ui.AppViewModel
 @Composable
 private fun LanguageSheet(r: ReadAloud, onVoiceSettings: () -> Unit, onDismiss: () -> Unit) {
     val c = pdfColors
+    val displayLocale = androidx.compose.ui.platform.LocalLocale.current.platformLocale
     val langs = remember { r.languages() }
     // opened at the language in use (a couple of rows above it showing)
     val current = remember(langs, r.language) { languageIndex(langs, r.language) }
@@ -631,7 +632,7 @@ private fun LanguageSheet(r: ReadAloud, onVoiceSettings: () -> Unit, onDismiss: 
         androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 420.dp), state = list) {
             items(langs.size) { i ->
                 val l = langs[i]
-                io.github.artcraftandroid.pdfcraft.ui.SheetRow(null, l.getDisplayName(Locale.getDefault()), { r.chooseLanguage(l); onDismiss() }, checked = i == current)
+                io.github.artcraftandroid.pdfcraft.ui.SheetRow(null, l.getDisplayName(displayLocale), { r.chooseLanguage(l); onDismiss() }, checked = i == current)
             }
         }
         io.github.artcraftandroid.pdfcraft.ui.SheetRow(LucideIcons.Settings, stringResource(R.string.read_aloud_voice_settings), onVoiceSettings)
