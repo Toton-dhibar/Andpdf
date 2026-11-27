@@ -1041,7 +1041,7 @@
     <string name="msg_busy_creating_pdf">Création du PDF…</string>
     <!-- Create PDF takes at most this many files at once. -->
     <plurals name="msg_create_first_files">
-        <item quantity="one">Seul le premier fichier a été utilisé.</item>
+        <item quantity="one">Fichiers utilisés : %1$d.</item>
         <item quantity="other">Seuls les %1$d premiers fichiers ont été utilisés.</item>
     </plurals>
     <string name="msg_busy_extracting">Extraction…</string>
