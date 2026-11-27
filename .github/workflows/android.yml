@@ -84,3 +84,13 @@ jobs:
             echo "Dynamic imports in $library"
             "$llvm_nm" -D --undefined-only "$library"
           done <<<"$libraries"
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfcraft-${{ matrix.abi }}
+          path: |
+            apps/pdfcraft-android/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/pdfcraft-android/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
