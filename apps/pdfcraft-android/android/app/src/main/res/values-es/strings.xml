@@ -528,6 +528,8 @@
     <string name="pages_rotate_left">Izquierda</string>
     <!-- Translator note: rotate the selected pages a quarter turn to the right. Keep it short. -->
     <string name="pages_rotate_right">Derecha</string>
+    <string name="viewer_rotate_page_left">Girar la página a la izquierda</string>
+    <string name="viewer_rotate_page_right">Girar la página a la derecha</string>
 
     <!-- Pages: Insert sheet (where the new pages go, and what they are) -->
     <string name="pages_insert">Insertar</string>

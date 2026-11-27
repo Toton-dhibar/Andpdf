@@ -2,7 +2,7 @@
 <!--
   Textes de PdfCraft, en français (France).
 -->
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="open_with">Ouvrir dans PdfCraft</string>
 
     <!-- Shared: buttons and words used on many screens -->
@@ -501,6 +501,8 @@
     <string name="pages_extract">Extraire</string>
     <string name="pages_rotate_left">Gauche</string>
     <string name="pages_rotate_right">Droite</string>
+    <string name="viewer_rotate_page_left">Faire pivoter la page à gauche</string>
+    <string name="viewer_rotate_page_right">Faire pivoter la page à droite</string>
 
     <!-- Pages: Insert sheet (where the new pages go, and what they are) -->
     <string name="pages_insert">Insérer</string>
@@ -1041,7 +1043,7 @@
     <string name="msg_busy_creating_pdf">Création du PDF…</string>
     <!-- Create PDF takes at most this many files at once. -->
     <plurals name="msg_create_first_files">
-        <item quantity="one">Seul le premier fichier a été utilisé.</item>
+        <item quantity="one" tools:ignore="ImpliedQuantity">Seul le premier fichier a été utilisé.</item>
         <item quantity="other">Seuls les %1$d premiers fichiers ont été utilisés.</item>
     </plurals>
     <string name="msg_busy_extracting">Extraction…</string>

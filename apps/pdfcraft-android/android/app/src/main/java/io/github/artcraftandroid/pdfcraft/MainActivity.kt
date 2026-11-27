@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private val pickFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(vm::addLocalFolder) }
     private val pickScanFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> vm.onScanFolderPicked(uri) }
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> vm.onMicPermission(granted) }
+    private val storagePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> vm.onLegacyStoragePermission(granted) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // transparent system bars with no contrast scrim: every screen paints the bands behind the
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
-        window.isNavigationBarContrastEnforced = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
         super.onCreate(savedInstanceState)
         // the window's recomposer gets PdfCraft's motion scale, so E-ink mode can stop every
         // animation (#13); otherwise it follows Android's animator duration scale, as before
@@ -120,6 +121,11 @@ class MainActivity : ComponentActivity() {
                 // refused before: explain first (the reference's order); otherwise Android's own prompt
                 if (shouldShowRequestPermissionRationale(android.Manifest.permission.RECORD_AUDIO)) vm.micRationale = true
                 else launchSafely { micPermission.launch(android.Manifest.permission.RECORD_AUDIO) }
+            }
+        }
+        lifecycleScope.launch {
+            for (u in vm.legacyStoragePermissionRequests) {
+                launchSafely { storagePermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) }
             }
         }
         // keep the screen on while reading, if asked, until half an hour without a touch

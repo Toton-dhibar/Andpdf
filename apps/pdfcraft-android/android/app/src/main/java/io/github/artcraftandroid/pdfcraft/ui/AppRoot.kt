@@ -85,7 +85,7 @@ fun AppRoot(vm: AppViewModel, onBrowse: () -> Unit, onPickSignatureImage: () -> 
     val doc = vm.document
     // outside the viewer (which sets its own) the bar icons follow the app's theme, not the system's
     val view = androidx.compose.ui.platform.LocalView.current
-    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+    val activity = androidx.activity.compose.LocalActivity.current
     androidx.compose.runtime.SideEffect {
         val window = activity?.window ?: return@SideEffect
         if (doc == null) {

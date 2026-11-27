@@ -4,12 +4,15 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import io.github.artcraftandroid.pdfcraft.R
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.security.MessageDigest
 
@@ -195,10 +198,25 @@ class DocumentFiles(private val context: Context) {
     }
 
     /**
-     * Save [file] into the phone's Downloads as [name] (made unique by the system if taken) and
-     * return its URI; no storage permission is needed for the app's own downloads.
+     * Save [file] into the phone's Downloads as [name] (made unique if taken) and return its URI.
+     * Android 8/9 use the legacy storage permission and file path; Android 10+ use MediaStore.
      */
     fun saveToDownloads(file: File, name: String, mime: String = "application/pdf"): Uri {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return saveToLegacySharedStorage(
+                file,
+                name,
+                mime,
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                MediaStore.Files.getContentUri("external"),
+                R.string.files_error_save_downloads,
+            )
+        }
+        return saveToDownloadsScoped(file, name, mime)
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveToDownloadsScoped(file: File, name: String, mime: String): Uri {
         val values = android.content.ContentValues().apply {
             put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -241,6 +259,15 @@ class DocumentFiles(private val context: Context) {
 
     /** Save an image into Pictures/PdfCraft (exported pages). */
     fun saveToPictures(file: File, name: String, mime: String): Uri {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "PdfCraft")
+            return saveToLegacySharedStorage(file, name, mime, directory, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, R.string.files_error_save_image)
+        }
+        return saveToPicturesScoped(file, name, mime)
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveToPicturesScoped(file: File, name: String, mime: String): Uri {
         val values = android.content.ContentValues().apply {
             put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, name)
             put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mime)
@@ -252,6 +279,65 @@ class DocumentFiles(private val context: Context) {
             file.inputStream().use { it.copyTo(out) }
         }
         return uri
+    }
+
+    /** Android 8/9 have no scoped MediaStore columns, so save with a path and publish that file. */
+    private fun saveToLegacySharedStorage(file: File, name: String, mime: String, directory: File, collection: Uri, errorRes: Int): Uri {
+        if (!directory.exists() && !directory.mkdirs()) error(context.getString(errorRes))
+        val cleanName = name.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").trim().ifEmpty { "Document" }
+        val extension = cleanName.substringAfterLast('.', "")
+        val stem = if (extension.isEmpty()) cleanName else cleanName.substringBeforeLast('.')
+        var target = File(directory, cleanName)
+        var suffix = 1
+        while (target.exists()) target = File(directory, "$stem (${suffix++})" + if (extension.isEmpty()) "" else ".$extension")
+        try {
+            file.inputStream().use { input -> FileOutputStream(target).use { input.copyTo(it) } }
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.MediaColumns.DATA, target.absolutePath)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, target.name)
+                put(MediaStore.MediaColumns.MIME_TYPE, mime)
+            }
+            val uri = resolver.insert(collection, values) ?: error(context.getString(errorRes))
+            val prefs = context.getSharedPreferences(LEGACY_MEDIA_PREFS, Context.MODE_PRIVATE)
+            prefs.edit().putStringSet(LEGACY_MEDIA_URIS, prefs.getStringSet(LEGACY_MEDIA_URIS, emptySet()).orEmpty() + uri.toString()).apply()
+            return uri
+        } catch (e: Exception) {
+            target.delete()
+            throw e
+        }
+    }
+
+    /** Android 8/9 MediaStore rows need their backing file renamed as well as their display name. */
+    fun renameLegacySharedFile(uri: Uri, name: String): Boolean {
+        val sourcePath = resolver.query(uri, arrayOf(MediaStore.MediaColumns.DATA), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        } ?: return false
+        val source = File(sourcePath)
+        val target = File(requireNotNull(source.parentFile), name)
+        if (target.exists() || !source.renameTo(target)) return false
+        try {
+            val updated = resolver.update(
+                uri,
+                android.content.ContentValues().apply {
+                    put(MediaStore.MediaColumns.DATA, target.absolutePath)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, target.name)
+                },
+                null,
+                null,
+            ) > 0
+            if (updated) return true
+        } catch (e: Exception) {
+            target.renameTo(source)
+            throw e
+        }
+        target.renameTo(source)
+        return false
+    }
+
+    fun forgetLegacySharedFile(uri: Uri) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return
+        val prefs = context.getSharedPreferences(LEGACY_MEDIA_PREFS, Context.MODE_PRIVATE)
+        prefs.edit().putStringSet(LEGACY_MEDIA_URIS, prefs.getStringSet(LEGACY_MEDIA_URIS, emptySet()).orEmpty() - uri.toString()).apply()
     }
 
     /** Where [uri] is, as a person would say it: a folder path, or the app that provided it. */
@@ -269,6 +355,9 @@ class DocumentFiles(private val context: Context) {
     }
 
     companion object {
+        internal const val LEGACY_MEDIA_PREFS = "legacy_media_store"
+        internal const val LEGACY_MEDIA_URIS = "uris"
+
         /** A file name without path separators or control characters, ending in `.pdf`. */
         fun safeName(name: String): String {
             val clean = name.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), "_").trim().trimStart('.').ifEmpty { "Document" }

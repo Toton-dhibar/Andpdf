@@ -1,6 +1,5 @@
 package io.github.artcraftandroid.pdfcraft.ui.viewer
 
-import android.app.Activity
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -88,12 +87,13 @@ fun ViewerScreen(vm: AppViewModel, doc: OpenDocument) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val view = LocalView.current
+    val activity = androidx.activity.compose.LocalActivity.current
     val context = LocalContext.current
 
     // The system bars go with the viewer's bars.
     val statusBar = vm.statusBarInDocuments
     DisposableEffect(ctl.barsVisible, statusBar, c.dark) {
-        val window = (context as? Activity)?.window
+        val window = activity?.window
         if (window != null) {
             val insets = WindowCompat.getInsetsController(window, view)
             insets.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

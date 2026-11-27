@@ -111,6 +111,18 @@ object LocalFiles {
 
     /** The PDFs this app put in shared storage itself (the media store lists only those to it). */
     private fun ownFiles(context: Context): List<LocalPdf> {
+        val legacy = android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q
+        if (legacy && androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return emptyList()
+        val legacyUris = if (legacy) {
+            context.getSharedPreferences(DocumentFiles.LEGACY_MEDIA_PREFS, Context.MODE_PRIVATE)
+                .getStringSet(DocumentFiles.LEGACY_MEDIA_URIS, emptySet()).orEmpty()
+        } else {
+            emptySet()
+        }
         val out = ArrayList<LocalPdf>()
         val collection = MediaStore.Files.getContentUri("external")
         val projection = arrayOf(
@@ -118,7 +130,7 @@ object LocalFiles {
             MediaStore.Files.FileColumns.DISPLAY_NAME,
             MediaStore.Files.FileColumns.SIZE,
             MediaStore.Files.FileColumns.DATE_MODIFIED,
-            MediaStore.Files.FileColumns.RELATIVE_PATH,
+            if (legacy) MediaStore.MediaColumns.DATA else MediaStore.Files.FileColumns.RELATIVE_PATH,
         )
         val selection = "${MediaStore.Files.FileColumns.MIME_TYPE} = ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
         runCatching {
@@ -126,8 +138,11 @@ object LocalFiles {
                 while (c.moveToNext()) {
                     val name = c.getString(1) ?: continue
                     if (name.startsWith(".")) continue
-                    val folder = c.getString(4)?.trimEnd('/')?.substringAfterLast('/') ?: ""
-                    out.add(LocalPdf(ContentUris.withAppendedId(collection, c.getLong(0)), null, name, folder, c.getLong(2), c.getLong(3) * 1000))
+                    val location = c.getString(4).orEmpty()
+                    val folder = if (legacy) File(location).parentFile?.name.orEmpty() else location.trimEnd('/').substringAfterLast('/')
+                    val uri = ContentUris.withAppendedId(collection, c.getLong(0))
+                    if (legacy && uri.toString() !in legacyUris) continue
+                    out.add(LocalPdf(uri, null, name, folder, c.getLong(2), c.getLong(3) * 1000))
                 }
             }
         }

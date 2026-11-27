@@ -78,6 +78,11 @@ fun MoreSheet(vm: AppViewModel, doc: OpenDocument) {
     fun close() {
         ctl.sheet = ViewerSheet.None
     }
+    fun rotateCurrentPage(degrees: Int) {
+        val page = doc.viewer.currentPage + 1
+        close()
+        vm.runTool(doc, "page_rotate", mapOf("pages" to listOf(page), "degrees" to degrees))
+    }
     val bookmarked = vm.bookmarks.isBookmarked(doc, doc.viewer.currentPage)
     val starred = vm.isStarred(doc)
     // like the reference, the sheet opens part way and rises to full height once its list scrolls
@@ -116,6 +121,8 @@ fun MoreSheet(vm: AppViewModel, doc: OpenDocument) {
             if (vm.propertiesInMenu) SheetRow(LucideIcons.Info, stringResource(R.string.sheet_properties), { ctl.sheet = ViewerSheet.Properties }, chevron = true)
             SheetRow(LucideIcons.Glasses, stringResource(R.string.sheet_view_settings), { ctl.sheet = ViewerSheet.ViewSettings }, chevron = true)
             SheetRow(LucideIcons.LayoutGrid, stringResource(R.string.sheet_pages), { close(); ctl.pagesOpen = true }, chevron = true)
+            SheetRow(LucideIcons.RotateCcw, stringResource(R.string.viewer_rotate_page_left), { rotateCurrentPage(-90) })
+            SheetRow(LucideIcons.RotateCw, stringResource(R.string.viewer_rotate_page_right), { rotateCurrentPage(90) })
             if (doc.info.attachments > 0u) SheetRow(LucideIcons.Paperclip, stringResource(R.string.sheet_attachments), { ctl.sheet = ViewerSheet.Attachments }, chevron = true)
             SheetRow(LucideIcons.Bookmark, stringResource(R.string.sheet_bookmarks_contents), { ctl.sheet = ViewerSheet.Bookmarks }, chevron = true)
             SheetRow(LucideIcons.MessagesSquare, stringResource(R.string.sheet_comment_list), { ctl.sheet = ViewerSheet.Comments }, chevron = true)

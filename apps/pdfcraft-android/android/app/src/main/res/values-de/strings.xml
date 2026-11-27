@@ -521,6 +521,8 @@
     <string name="pages_rotate_left">Links</string>
     <!-- Translator note: rotate the selected pages a quarter turn to the right. Keep it short. -->
     <string name="pages_rotate_right">Rechts</string>
+    <string name="viewer_rotate_page_left">Seite nach links drehen</string>
+    <string name="viewer_rotate_page_right">Seite nach rechts drehen</string>
 
     <!-- Pages: Insert sheet (where the new pages go, and what they are) -->
     <string name="pages_insert">Einfügen</string>

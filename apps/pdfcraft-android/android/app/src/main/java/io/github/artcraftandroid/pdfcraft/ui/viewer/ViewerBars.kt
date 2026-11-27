@@ -92,7 +92,7 @@ fun ViewerTopBar(
     onShare: () -> Unit,
     onMore: () -> Unit,
     moreOpen: Boolean,
-    /** A tool with its own title (Edit PDF): Done, the title and Undo only. */
+    /** A tool with its own title (Edit PDF): Done, the title, Undo and More. */
     title: String? = null,
     /** What Undo and Redo would take back or bring back, for their menu. */
     undoLabel: String? = null,
@@ -117,6 +117,7 @@ fun ViewerTopBar(
             Spacer(Modifier.width(6.dp))
             Text(title, color = c.label, fontSize = 17.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.weight(1f))
             UndoMenuButton(canUndo, canRedo, onUndo, onRedo, undoLabel, redoLabel)
+            BarIcon(LucideIcons.EllipsisVertical, stringResource(R.string.common_more_options), onMore, selected = moreOpen)
             Spacer(Modifier.width(10.dp))
             return@Row
         }

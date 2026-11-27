@@ -1,0 +1,110 @@
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      abi:
+        description: ABI to build for manual runs
+        type: choice
+        options:
+          - arm64-v8a
+          - armeabi-v7a
+          - x86_64
+          - arm64-and-v7
+          - all
+        default: arm64-v8a
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build:
+    name: Android ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: ${{ github.event_name == 'workflow_dispatch' && inputs.abi == 'arm64-and-v7' && fromJSON('["arm64-v8a","armeabi-v7a"]') || github.event_name == 'workflow_dispatch' && inputs.abi != 'all' && fromJSON(format('["{0}"]', inputs.abi)) || fromJSON('["arm64-v8a","armeabi-v7a","x86_64"]') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Rust
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android-api-26-${{ matrix.abi }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/pdfcraft-android/android/gradle/libs.versions.toml', 'apps/pdfcraft-android/android/gradle/wrapper/gradle-wrapper.properties', 'apps/pdfcraft-android/android/build.gradle.kts', 'apps/pdfcraft-android/android/app/build.gradle.kts') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Install cargo-ndk and the Android NDK
+        run: |
+          cargo install cargo-ndk --version 4.1.2 --locked
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;29.0.14206865" >/dev/null
+
+      - name: Lint and build ABI
+        working-directory: apps/pdfcraft-android/android
+        env:
+          ABI: ${{ matrix.abi }}
+        run: |
+          THREADS="$(nproc)"
+          export CARGO_BUILD_JOBS="$THREADS"
+          if [ "$ABI" = arm64-v8a ]; then
+            ./gradlew --no-daemon --max-workers="$THREADS" lint assembleDebug assembleRelease "-Ppdfcraft.abis=$ABI"
+          else
+            ./gradlew --no-daemon --max-workers="$THREADS" assembleDebug assembleRelease "-Ppdfcraft.abis=$ABI"
+          fi
+
+      - name: Verify packaged ABI
+        working-directory: apps/pdfcraft-android/android
+        env:
+          ABI: ${{ matrix.abi }}
+        run: |
+          for variant in debug release; do
+            apk="app/build/outputs/apk/$variant/app-$variant.apk"
+            unzip -Z1 "$apk" | grep -Fxq "lib/$ABI/libpdfcraft_android.so"
+          done
+
+      - name: Inspect native imports linked for API 26
+        working-directory: apps/pdfcraft-android/android
+        run: |
+          llvm_nm="$ANDROID_HOME/ndk/29.0.14206865/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+          libraries="$(find app/build -type f -name libpdfcraft_android.so)"
+          test -n "$libraries"
+          while IFS= read -r library; do
+            echo "Dynamic imports in $library"
+            "$llvm_nm" -D --undefined-only "$library"
+          done <<<"$libraries"
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfcraft-${{ matrix.abi }}
+          path: |
+            apps/pdfcraft-android/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/pdfcraft-android/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 7
