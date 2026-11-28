@@ -381,6 +381,8 @@
     <string name="pages_rotate_right">يمين</string>
     <string name="viewer_rotate_page_left">تدوير الصفحة إلى اليسار</string>
     <string name="viewer_rotate_page_right">تدوير الصفحة إلى اليمين</string>
+    <string name="viewer_read_horizontally">تدوير الشاشة للقراءة أفقيًا</string>
+    <string name="viewer_restore_orientation">استخدام تدوير الشاشة التلقائي</string>
     <string name="pages_insert">إدراج</string>
     <string name="pages_at_start">في البداية</string>
     <string name="pages_at_end">في النهاية</string>

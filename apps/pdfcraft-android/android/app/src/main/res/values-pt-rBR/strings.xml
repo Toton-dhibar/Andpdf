@@ -356,6 +356,8 @@
     <string name="pages_rotate_right">Direita</string>
     <string name="viewer_rotate_page_left">Girar página para a esquerda</string>
     <string name="viewer_rotate_page_right">Girar página para a direita</string>
+    <string name="viewer_read_horizontally">Girar a tela para ler na horizontal</string>
+    <string name="viewer_restore_orientation">Usar rotação automática da tela</string>
     <string name="pages_insert">Inserir</string>
     <string name="pages_at_start">No início</string>
     <string name="pages_at_end">No final</string>
