@@ -523,6 +523,8 @@
     <string name="pages_rotate_right">Rechts</string>
     <string name="viewer_rotate_page_left">Seite nach links drehen</string>
     <string name="viewer_rotate_page_right">Seite nach rechts drehen</string>
+    <string name="viewer_read_horizontally">Bildschirm zum horizontalen Lesen drehen</string>
+    <string name="viewer_restore_orientation">Automatische Bildschirmdrehung verwenden</string>
 
     <!-- Pages: Insert sheet (where the new pages go, and what they are) -->
     <string name="pages_insert">Einfügen</string>

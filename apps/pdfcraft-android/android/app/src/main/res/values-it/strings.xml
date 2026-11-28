@@ -532,6 +532,8 @@
     <string name="pages_rotate_right">Destra</string>
     <string name="viewer_rotate_page_left">Ruota pagina a sinistra</string>
     <string name="viewer_rotate_page_right">Ruota pagina a destra</string>
+    <string name="viewer_read_horizontally">Ruota lo schermo per leggere in orizzontale</string>
+    <string name="viewer_restore_orientation">Usa la rotazione automatica dello schermo</string>
 
     <!-- Inserimento di pagine -->
 

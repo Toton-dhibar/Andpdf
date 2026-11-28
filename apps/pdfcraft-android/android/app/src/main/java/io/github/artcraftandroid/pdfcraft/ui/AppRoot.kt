@@ -86,6 +86,11 @@ fun AppRoot(vm: AppViewModel, onBrowse: () -> Unit, onPickSignatureImage: () -> 
     // outside the viewer (which sets its own) the bar icons follow the app's theme, not the system's
     val view = androidx.compose.ui.platform.LocalView.current
     val activity = androidx.activity.compose.LocalActivity.current
+    LaunchedEffect(doc, activity) {
+        if (doc == null && activity?.requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
+            activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+    }
     androidx.compose.runtime.SideEffect {
         val window = activity?.window ?: return@SideEffect
         if (doc == null) {

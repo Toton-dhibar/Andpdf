@@ -75,6 +75,10 @@ import java.util.Date
 fun MoreSheet(vm: AppViewModel, doc: OpenDocument) {
     val c = pdfColors
     val ctl = doc.controller
+    val activity = androidx.activity.compose.LocalActivity.current
+    var readHorizontally by remember(activity) {
+        mutableStateOf(activity?.requestedOrientation == android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    }
     fun close() {
         ctl.sheet = ViewerSheet.None
     }
@@ -123,6 +127,18 @@ fun MoreSheet(vm: AppViewModel, doc: OpenDocument) {
             SheetRow(LucideIcons.LayoutGrid, stringResource(R.string.sheet_pages), { close(); ctl.pagesOpen = true }, chevron = true)
             SheetRow(LucideIcons.RotateCcw, stringResource(R.string.viewer_rotate_page_left), { rotateCurrentPage(-90) })
             SheetRow(LucideIcons.RotateCw, stringResource(R.string.viewer_rotate_page_right), { rotateCurrentPage(90) })
+            if (activity != null) SheetRow(
+                if (readHorizontally) LucideIcons.RotateCcw else LucideIcons.RotateCw,
+                stringResource(if (readHorizontally) R.string.viewer_restore_orientation else R.string.viewer_read_horizontally),
+                {
+                    activity.requestedOrientation = if (readHorizontally) {
+                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    } else {
+                        android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    }
+                    readHorizontally = !readHorizontally
+                },
+            )
             if (doc.info.attachments > 0u) SheetRow(LucideIcons.Paperclip, stringResource(R.string.sheet_attachments), { ctl.sheet = ViewerSheet.Attachments }, chevron = true)
             SheetRow(LucideIcons.Bookmark, stringResource(R.string.sheet_bookmarks_contents), { ctl.sheet = ViewerSheet.Bookmarks }, chevron = true)
             SheetRow(LucideIcons.MessagesSquare, stringResource(R.string.sheet_comment_list), { ctl.sheet = ViewerSheet.Comments }, chevron = true)
